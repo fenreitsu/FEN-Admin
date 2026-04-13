@@ -1,4 +1,4 @@
-# ⬡ FENAdmin v1.1
+# ⬡ FENAdmin v1.2
 ### Gestor de Usuarios y Grupos para Linux (GUI LINUX)
 **by [@fenreitsu](https://github.com/fenreitsu)** · *Proyecto en desarrollo*
 
@@ -13,7 +13,7 @@ FENAdmin es una herramienta gráfica para administrar usuarios y grupos en Linux
 - [🖥️ Interfaz](#️-interfaz)
 - [👤 Gestión de Usuarios](#-gestión-de-usuarios)
 - [👥 Gestión de Grupos](#-gestión-de-grupos)
-- [🔐 Permisos Avanzados](#-permisos-avanzados)
+- [🔐 Permisos Especiales](#-permisos-especiales)
 - [⚙️ Configuración de Cuenta](#️-configuración-de-cuenta)
 - [⚠️ Seguridad](#️-seguridad)
 - [🛠️ Solución de Problemas](#️-solución-de-problemas)
@@ -88,7 +88,7 @@ source ~/.bashrc
 | **Central** | Tabla interactiva — clic para ordenar, doble clic para editar, clic derecho para más opciones |
 | **Inferior** | Terminal integrada — muestra comandos en tiempo real y permite ejecutarlos manualmente |
 
-**Terminal integrada** *(nueva en v1.1)*: historial con `↑`/`↓`, comandos `cd`/`clear`/`exit`, bloqueo automático de operaciones peligrosas y salida coloreada por tipo (verde/rojo/amarillo/azul).
+**Terminal integrada** *(nueva en v1.1 en adelante)*: historial con `↑`/`↓`, comandos `cd`/`clear`/`exit`, bloqueo automático de operaciones peligrosas y salida coloreada por tipo (verde/rojo/amarillo/azul).
 
 **Tema visual**: cambia entre 🌙 Oscuro y ☀️ Claro con el botón en la barra superior.
 
@@ -102,10 +102,10 @@ source ~/.bashrc
 2. Completa la pestaña **Información Básica** (nombre, GECOS, home, shell, contraseña)
 3. Elige el **Tipo de cuenta**:
 
-| Tipo | Sudo | Expiración | Permisos avanzados |
+| Tipo | Sudo | Expiración | Permisos especiales |
 |------|:----:|:----------:|:------------------:|
 | Admin | ✅ | Nunca | — |
-| Desktop User | ❌ | 90 días | — |
+| Desktop User | ❌ | 90 días | Por defecto del sistema |
 | Personalizado | ❌ | 90 días (configurable) | ✅ |
 
 4. *(Opcional)* Ajusta la pestaña **Configuración de cuenta**
@@ -122,7 +122,7 @@ echo 'username:contraseña' | chpasswd
 
 **Doble clic** en la fila o clic derecho → **✏ Editar usuario**.
 
-Puedes modificar nombre, GECOS, home, shell, contraseña, tipo de cuenta y permisos avanzados. Si el usuario ya era **Personalizado**, sus permisos se cargan automáticamente.
+Puedes modificar nombre, GECOS, home, shell, contraseña, tipo de cuenta y permisos especiales. Si el usuario ya era **Personalizado**, sus permisos se cargan automáticamente.
 
 ```bash
 usermod -c 'Nuevo Nombre' -d /nuevo/home -m -s /bin/zsh 'usuario'
@@ -159,7 +159,7 @@ Al editar, los miembros añadidos se agregan con `usermod -aG` y los eliminados 
 
 ---
 
-## 🔐 Permisos Avanzados
+## 🔐 Permisos Especiales (Avanzados)
 
 *Disponible únicamente para usuarios de tipo **Personalizado**.*
 
@@ -228,7 +228,7 @@ sudo cp /etc/group  /etc/group.bak
 | Fuente "Courier New" mal renderizada | Instala `fonts-liberation` |
 | Ventana muy pequeña | Mínimo recomendado: 900×600 |
 | `usermod: user X currently used by process Y` | El usuario tiene sesión activa; ciérrala primero |
-| Permisos avanzados no aparecen | El tipo de cuenta debe ser **Personalizado** |
+| Permisos especiales no aparecen | El tipo de cuenta debe ser **Personalizado** |
 | Error de contraseña al desbloquear | FENAdmin pedirá establecer una nueva automáticamente |
 
 ---
@@ -262,7 +262,7 @@ fenadmin/
 | ✅ | Terminal interactiva integrada con historial `↑`/`↓` |
 | ✅ | Bloqueo de comandos peligrosos (`nobody`, `nogroup`) en terminal |
 | ✅ | Botones de tipo de cuenta con estilo toggle (azul / gris) |
-| ✅ | Permisos avanzados se cargan automáticamente en usuarios Personalizado |
+| ✅ | Permisos especiales se cargan automáticamente en usuarios Personalizado |
 | ✅ | Aviso visible cuando la cuenta no es Personalizado |
 | ✅ | Grupos como listas dinámicas (agregar/eliminar uno a uno) |
 | ✅ | Layout de Configuración de cuenta corregido |
