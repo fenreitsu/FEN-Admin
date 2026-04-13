@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FENAdmin - Gestor de Usuarios y Grupos v1.1
+FENAdmin - Gestor de Usuarios y Grupos v1.2
 Creador: @fenreitsu
 Compatibilidad: Linux (Kali Linux, Ubuntu, Debian, etc.)
 Mejoras: Terminal interactiva inferior, sin panel de actividad, desbloqueo corregido
@@ -374,7 +374,7 @@ class InteractiveTerminal:
         self.current_directory = os.getcwd()
 
         self._write_output("=" * 60, "info")
-        self._write_output("  FENAdmin Terminal Interactiva v1.1", "success")
+        self._write_output("  FENAdmin Terminal Interactiva v1.2", "success")
         self._write_output("  Escribe comandos del sistema y presiona Enter", "info")
         self._write_output(f"  Directorio actual: {self.current_directory}", "info")
         self._write_output("  Usa 'clear' para limpiar la pantalla", "info")
@@ -541,7 +541,7 @@ class FENAdmin(tk.Tk):
         self._filter_text = tk.StringVar()
         self._filter_text.trace_add("write", lambda *_: self._apply_filter())
 
-        self.title("FENAdmin v1.1 - by @fenreitsu")
+        self.title("FENAdmin v1.2 - by @fenreitsu")
         self.geometry("1200x700")
         self.minsize(900, 600)
         self.configure(bg=self.T["bg"])
@@ -617,7 +617,7 @@ class FENAdmin(tk.Tk):
 
         self.lbl_logo = tk.Label(
             logo_frame,
-            text="FENAdmin v1.1",
+            text="FENAdmin v1.2",
             font=("Courier New", 16, "bold"),
         )
         self.lbl_logo.pack(side="left")
