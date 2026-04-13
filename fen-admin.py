@@ -786,6 +786,7 @@ class FENAdmin(tk.Tk):
 
         actions = [
             ("😁 Nuevo Usuario",  self._dlg_new_user,    "accent"),
+            ("✏ Editar Usuario",  self._dlg_edit_user,   "warning"),
             ("🗑 Eliminar",       self._delete_user,     "danger"),
             ("🔒 Bloquear",       self._lock_user,       "warning"),
             ("🔓 Desbloquear",    self._unlock_user,     "success"),
@@ -853,7 +854,12 @@ class FENAdmin(tk.Tk):
         hsb.pack(side="bottom", fill="x")
         self.tree_users.pack(fill="both", expand=True)
 
-        self.tree_users.bind("<Double-1>", lambda e: self._dlg_edit_user())
+        def _on_double_user(event):
+            row = self.tree_users.identify_row(event.y)
+            if row:
+                self.tree_users.selection_set(row)
+                self.after(10, self._dlg_edit_user)
+        self.tree_users.bind("<Double-1>", _on_double_user)
         self.tree_users.bind("<Button-3>", self._context_menu_user)
 
         self.ctx_user = tk.Menu(self, tearoff=0)
@@ -922,7 +928,12 @@ class FENAdmin(tk.Tk):
         hsb.pack(side="bottom", fill="x")
         self.tree_groups.pack(fill="both", expand=True)
 
-        self.tree_groups.bind("<Double-1>", lambda e: self._dlg_edit_group())
+        def _on_double_group(event):
+            row = self.tree_groups.identify_row(event.y)
+            if row:
+                self.tree_groups.selection_set(row)
+                self.after(10, self._dlg_edit_group)
+        self.tree_groups.bind("<Double-1>", _on_double_group)
         self.tree_groups.bind("<Button-3>", self._context_menu_group)
 
         self.ctx_group = tk.Menu(self, tearoff=0)
@@ -1128,14 +1139,20 @@ class FENAdmin(tk.Tk):
         self.tree_users.tag_configure("normal", foreground=T["text"])
         self.lbl_user_count.config(text=f"  {count} usuario(s) mostrado(s)")
 
+    # Grupos exactos que definen un Desktop User
+    _DESKTOP_GROUPS = frozenset({'adm', 'dialout', 'fax', 'cdrom', 'floppy',
+                                  'tape', 'audio', 'dip', 'video', 'plugdev', 'scanner'})
+
     def _determine_account_type(self, username):
-        groups = get_user_groups(username)
+        groups = set(get_user_groups(username))
+        # Quitar el propio username (grupo personal) para comparar
+        groups.discard(username)
         if 'sudo' in groups or 'wheel' in groups or 'admin' in groups:
             return "Admin"
-        elif username.startswith(('user', 'alumno', 'estudiante')):
+        # Desktop User: tiene EXACTAMENTE los grupos del conjunto (puede tener el suyo propio)
+        if groups == self._DESKTOP_GROUPS:
             return "Desktop User"
-        else:
-            return "Personalizado"
+        return "Personalizado"
 
     def _clear_user_filters(self):
         self.search_entry.delete(0, tk.END)
@@ -1433,7 +1450,7 @@ class FENAdmin(tk.Tk):
                 else:
                     self._log_to_terminal(f"✅ Usuario '{d['username']}' creado (expira en 90 días)", "success")
 
-                # Configurar permisos avanzados si se seleccionaron
+                # Configurar permisos avanzados (especiales) si se seleccionaron
                 if hasattr(dlg, 'permisos_seleccionados') and dlg.permisos_seleccionados:
                     for grupo in dlg.permisos_seleccionados:
                         cmd = f"usermod -aG '{grupo}' '{d['username']}'"
@@ -1459,15 +1476,25 @@ class FENAdmin(tk.Tk):
         try:
             p = pwd.getpwnam(username)
             privileges = get_user_privileges(username)
+            account_type_current = self._determine_account_type(username)
+            try:
+                primary_group_name = grp.getgrgid(p.pw_gid).gr_name
+            except KeyError:
+                primary_group_name = str(p.pw_gid)
+            all_groups = get_user_groups(username)
+            additional_groups = [g for g in all_groups
+                                 if g != username and g != primary_group_name]
             current = {
-                "username": p.pw_name,
-                "comment":  p.pw_gecos,
-                "home":     p.pw_dir,
-                "shell":    p.pw_shell,
-                "uid":      p.pw_uid,
-                "gid":      p.pw_gid,
-                "privileges": privileges,
-                "account_type": "Admin" if privileges.get('is_sudoer') else "Personalizado",  # Guardar tipo actual
+                "username":     p.pw_name,
+                "comment":      p.pw_gecos,
+                "home":         p.pw_dir,
+                "shell":        p.pw_shell,
+                "uid":          p.pw_uid,
+                "gid":          p.pw_gid,
+                "group":        primary_group_name,
+                "groups":       ",".join(additional_groups),
+                "privileges":   privileges,
+                "account_type": account_type_current,
             }
         except KeyError:
             messagebox.showerror("Error", f"Usuario '{username}' no encontrado.")
@@ -2064,11 +2091,16 @@ class AdvancedUserDialog(tk.Toplevel):
         self.edit = edit
         self.saved_permissions = {}
         self.title(title)
-        self.resizable(False, False)
+        self.withdraw()  # Ocultar mientras se construye
+        self.resizable(True, True)
         self.configure(bg=theme["bg"])
-        self.grab_set()
         self._build(data)
+        # Forzar cálculo de tamaño real antes de centrar y mostrar
+        self.update_idletasks()
+        self.update_idletasks()
         self._center()
+        self.grab_set()
+        self.after(0, self.deiconify)  # Mostrar en el siguiente ciclo del event loop
 
     def _center(self):
         self.update_idletasks()
@@ -2305,7 +2337,27 @@ class AdvancedUserDialog(tk.Toplevel):
             self.uid_entry.insert(0, str(data["uid"]))
         self.uid_entry.pack(anchor="w", ipady=3, pady=(2, 0))
 
-        # Grupo principal — lista de uno en uno
+        # Obtener todos los grupos del sistema para los comboboxes
+        all_system_groups = sorted([g.gr_name for g in grp.getgrall()])
+
+        def _make_autocomplete_combo(parent, width=28):
+            """Combobox con filtrado/autocompletado de grupos del sistema"""
+            var = tk.StringVar()
+            combo = ttk.Combobox(parent, textvariable=var,
+                                 values=all_system_groups, width=width)
+            combo.configure(font=("Courier New", 10))
+            def _on_key(event):
+                typed = var.get()
+                if typed:
+                    filtered = [g for g in all_system_groups
+                                if g.lower().startswith(typed.lower())]
+                    combo['values'] = filtered if filtered else all_system_groups
+                else:
+                    combo['values'] = all_system_groups
+            combo.bind("<KeyRelease>", _on_key)
+            return combo, var
+
+        # Grupo principal — combobox con autocompletado
         row = tk.Frame(campos_frame, bg=T["bg"])
         row.pack(fill="x", **pad)
         tk.Label(row, text="Grupo principal:", font=("Courier New", 9),
@@ -2313,13 +2365,9 @@ class AdvancedUserDialog(tk.Toplevel):
 
         gp_input_row = tk.Frame(row, bg=T["bg"])
         gp_input_row.pack(anchor="w", pady=(2, 0))
-        self._gp_entry = tk.Entry(gp_input_row, font=("Courier New", 10),
-                                   bg=T["entry_bg"], fg=T["entry_fg"],
-                                   insertbackground=T["accent"],
-                                   highlightbackground=T["border"],
-                                   highlightcolor=T["accent"],
-                                   highlightthickness=1, relief="flat", width=28)
-        self._gp_entry.pack(side="left", ipady=3)
+
+        self._gp_combo, self._gp_var = _make_autocomplete_combo(gp_input_row, width=28)
+        self._gp_combo.pack(side="left", ipady=3)
 
         # Solo permite UN grupo principal — listbox con un elemento
         self._gp_listbox = tk.Listbox(row, font=("Courier New", 9),
@@ -2334,16 +2382,19 @@ class AdvancedUserDialog(tk.Toplevel):
             self._gp_listbox.insert(tk.END, data["group"])
 
         def _set_gp():
-            val = self._gp_entry.get().strip()
+            val = self._gp_var.get().strip()
             if val:
                 self._gp_listbox.delete(0, tk.END)
                 self._gp_listbox.insert(tk.END, val)
-                self._gp_entry.delete(0, tk.END)
+                self._gp_var.set("")
+                self._gp_combo['values'] = all_system_groups
 
         def _del_gp():
             sel = self._gp_listbox.curselection()
             if sel:
                 self._gp_listbox.delete(sel[0])
+
+        self._gp_combo.bind("<Return>", lambda e: _set_gp())
 
         tk.Button(gp_input_row, text="✓ Establecer", font=("Courier New", 8),
                   bg=T["accent2"], fg="#fff", relief="flat", cursor="hand2",
@@ -2352,7 +2403,7 @@ class AdvancedUserDialog(tk.Toplevel):
                   bg=T["button_bg"], fg=T["text2"], relief="flat", cursor="hand2",
                   padx=6, command=_del_gp).pack(side="left", padx=2)
 
-        # Grupos adicionales — lista dinámica
+        # Grupos adicionales — combobox con autocompletado + lista dinámica
         row = tk.Frame(campos_frame, bg=T["bg"])
         row.pack(fill="x", **pad)
         tk.Label(row, text="Grupos adicionales:", font=("Courier New", 9),
@@ -2360,13 +2411,9 @@ class AdvancedUserDialog(tk.Toplevel):
 
         ga_input_row = tk.Frame(row, bg=T["bg"])
         ga_input_row.pack(anchor="w", pady=(2, 0))
-        self._ga_entry = tk.Entry(ga_input_row, font=("Courier New", 10),
-                                   bg=T["entry_bg"], fg=T["entry_fg"],
-                                   insertbackground=T["accent"],
-                                   highlightbackground=T["border"],
-                                   highlightcolor=T["accent"],
-                                   highlightthickness=1, relief="flat", width=28)
-        self._ga_entry.pack(side="left", ipady=3)
+
+        self._ga_combo, self._ga_var = _make_autocomplete_combo(ga_input_row, width=28)
+        self._ga_combo.pack(side="left", ipady=3)
 
         self._ga_listbox = tk.Listbox(row, font=("Courier New", 9),
                                       bg=T["entry_bg"], fg=T["entry_fg"],
@@ -2383,17 +2430,18 @@ class AdvancedUserDialog(tk.Toplevel):
                 self._ga_listbox.insert(tk.END, g)
 
         def _add_ga():
-            val = self._ga_entry.get().strip()
+            val = self._ga_var.get().strip()
             if val and val not in self._ga_listbox.get(0, tk.END):
                 self._ga_listbox.insert(tk.END, val)
-                self._ga_entry.delete(0, tk.END)
+                self._ga_var.set("")
+                self._ga_combo['values'] = all_system_groups
 
         def _del_ga():
             sel = self._ga_listbox.curselection()
             if sel:
                 self._ga_listbox.delete(sel[0])
 
-        self._ga_entry.bind("<Return>", lambda e: _add_ga())
+        self._ga_combo.bind("<Return>", lambda e: _add_ga())
 
         tk.Button(ga_input_row, text="＋ Agregar", font=("Courier New", 8),
                   bg=T["accent2"], fg="#fff", relief="flat", cursor="hand2",
@@ -2447,14 +2495,14 @@ class AdvancedUserDialog(tk.Toplevel):
         self.permisos_title_frame = tk.Frame(main_adv_frame, bg=T["bg"])
         self.permisos_title_frame.pack(anchor="w", pady=(5, 5))
 
-        self.permisos_label = tk.Label(self.permisos_title_frame, text="🔐 PERMISOS AVANZADOS",
+        self.permisos_label = tk.Label(self.permisos_title_frame, text="🔐 PERMISOS ESPECIALES",
                                        font=("Courier New", 10, "bold"),
                                        bg=T["bg"], fg=T["accent"])
         self.permisos_label.pack(side="left")
 
         # Mensaje de advertencia (se muestra debajo del título cuando no es Personalizado)
         self.warning_label = tk.Label(main_adv_frame,
-                                      text="⚠ Para usar PERMISOS AVANZADOS, primero seleccione el tipo de cuenta 'Personalizado'",
+                                      text="⚠ Para modificar PERMISOS ESPECIALES, primero seleccione el tipo de cuenta 'Personalizado'",
                                       font=("Courier New", 9),
                                       bg=T["bg"], fg=T["warning"])
 
@@ -2635,20 +2683,25 @@ class AdvancedUserDialog(tk.Toplevel):
             command=self._submit
         ).pack(side="right", padx=4)
 
-        # Configurar el combobox de shells si existe
+        # Configurar el combobox de shells
         shells = get_available_shells()
         if "shell" in self.entries:
-            shell_combo = ttk.Combobox(form, textvariable=self.entries["shell"], values=shells, width=33)
-            shell_combo.pack(side="left", ipady=3)
+            # Guardar el valor actual del Entry antes de reemplazarlo
+            current_shell = self.entries["shell"].get()
+            shell_var = tk.StringVar(value=current_shell)
+            # Desempaquetar el Entry original
             self.entries["shell"].pack_forget()
+            # Crear Combobox con el valor actual preseleccionado
+            shell_combo = ttk.Combobox(form, textvariable=shell_var, values=shells, width=33)
+            if current_shell and current_shell not in shells:
+                shell_combo['values'] = [current_shell] + list(shells)
+            shell_combo.set(current_shell)
+            shell_combo.pack(side="left", ipady=3)
             self.entries["shell"] = shell_combo
 
         # Inicializar visibilidad de permisos y cargar estado guardado
-        # Se hace con after() para garantizar que todos los widgets estén listos
-        def _init_permisos():
-            on_account_type_change()
-            self._load_saved_permissions()
-        self.after(50, _init_permisos)
+        on_account_type_change()
+        self._load_saved_permissions()
 
     def _create_tooltip(self, notebook, tab_text):
         """Crea un tooltip para la pestaña Configuración Avanzada"""
@@ -2699,20 +2752,20 @@ class AdvancedUserDialog(tk.Toplevel):
         selected = notebook.index(notebook.select())
         tab_text = notebook.tab(selected, "text")
 
-        if tab_text == "Configuración de cuenta":
-            if self.account_type.get() != "Personalizado":
-                # Mostrar mensaje de error y volver a la pestaña anterior
-                messagebox.showwarning(
-                    "Acceso Denegado",
-                    "Para usar la pestaña 'Configuración de cuenta', primero debe seleccionar el tipo de cuenta 'Personalizado'.\n\n"
-                    "Cambie el tipo de cuenta en la pestaña 'Información Básica'.",
-                    parent=self
-                )
-                # Volver a la pestaña de Información Básica
-                notebook.select(0)
-            else:
-                # Cargar los permisos guardados cuando se accede a la pestaña
-                self._load_saved_permissions()
+        # if tab_text == "Configuración de cuenta":
+        #     if self.account_type.get() != "Personalizado":
+        #         # Mostrar mensaje de error y volver a la pestaña anterior
+        #         messagebox.showwarning(
+        #             "Acceso Denegado",
+        #             "Para usar la pestaña 'Configuración de cuenta', primero debe seleccionar el tipo de cuenta 'Personalizado'.\n\n"
+        #             "Cambie el tipo de cuenta en la pestaña 'Información Básica'.",
+        #             parent=self
+        #         )
+        #         # Volver a la pestaña de Información Básica
+        #         notebook.select(0)
+        #     else:
+        #         # Cargar los permisos guardados cuando se accede a la pestaña
+        #         self._load_saved_permissions()
 
     def _load_saved_permissions(self):
         """Carga los permisos guardados desde self.saved_permissions"""
@@ -2771,6 +2824,12 @@ class AdvancedUserDialog(tk.Toplevel):
             messagebox.showerror("Error", "El nombre de usuario es obligatorio.", parent=self)
             return
 
+        # Validar shell
+        shell_val = d.get("shell", "").strip()
+        if not shell_val:
+            messagebox.showerror("Error", "Debes seleccionar una shell.", parent=self)
+            return
+
         # VALIDACIÓN DE CONTRASEÑA
         if self.edit:
             # MODO EDICIÓN: la contraseña es OPCIONAL
@@ -2820,11 +2879,15 @@ class GroupDialog(tk.Toplevel):
         self.result = None
         self.edit = edit
         self.title(title)
-        self.resizable(False, False)
+        self.withdraw()  # Ocultar mientras se construye
+        self.resizable(True, True)
         self.configure(bg=theme["bg"])
-        self.grab_set()
         self._build(data)
+        self.update_idletasks()
+        self.update_idletasks()
         self._center()
+        self.grab_set()
+        self.after(0, self.deiconify)
 
     def _center(self):
         self.update_idletasks()
@@ -2845,13 +2908,14 @@ class GroupDialog(tk.Toplevel):
         form = tk.Frame(self, bg=T["bg"], pady=10)
         form.pack(fill="both", expand=True, padx=4)
 
-        fields = [("Nombre del grupo *", "name"), ("GID (dejar vacío para auto)", "gid"),
-                  ("Miembros (separados por coma)", "members"), ("Contraseña del grupo (opcional)", "password")]
+        # Campos básicos (sin "members" que se maneja aparte)
+        basic_fields = [("Nombre del grupo *", "name"), ("GID (dejar vacío para auto)", "gid"),
+                        ("Contraseña del grupo (opcional)", "password")]
         if self.edit:
-            fields.insert(1, ("Nuevo nombre", "new_name"))
+            basic_fields.insert(1, ("Nuevo nombre", "new_name"))
 
         self.entries = {}
-        for label, key in fields:
+        for label, key in basic_fields:
             row = tk.Frame(form, bg=T["bg"])
             row.pack(fill="x", **pad)
             tk.Label(row, text=label, font=("Courier New", 9),
@@ -2867,6 +2931,67 @@ class GroupDialog(tk.Toplevel):
                 e.insert(0, str(val))
             e.pack(side="left", ipady=3)
             self.entries[key] = e
+
+        # ── Miembros: combobox con autocompletado + lista dinámica ──
+        all_users = sorted([p.pw_name for p in pwd.getpwall() if p.pw_uid >= 1000])
+
+        mb_frame = tk.Frame(form, bg=T["bg"])
+        mb_frame.pack(fill="x", **pad)
+        tk.Label(mb_frame, text="Miembros:", font=("Courier New", 9),
+                 bg=T["bg"], fg=T["text2"], width=28, anchor="w").pack(anchor="w")
+
+        mb_input_row = tk.Frame(mb_frame, bg=T["bg"])
+        mb_input_row.pack(anchor="w", pady=(2, 0))
+
+        self._mb_var = tk.StringVar()
+        self._mb_combo = ttk.Combobox(mb_input_row, textvariable=self._mb_var,
+                                      values=all_users, width=28)
+        self._mb_combo.configure(font=("Courier New", 10))
+
+        def _on_mb_key(event):
+            typed = self._mb_var.get()
+            if typed:
+                filtered = [u for u in all_users if u.lower().startswith(typed.lower())]
+                self._mb_combo['values'] = filtered if filtered else all_users
+            else:
+                self._mb_combo['values'] = all_users
+        self._mb_combo.bind("<KeyRelease>", _on_mb_key)
+        self._mb_combo.pack(side="left", ipady=3)
+
+        self._mb_listbox = tk.Listbox(mb_frame, font=("Courier New", 9),
+                                      bg=T["entry_bg"], fg=T["entry_fg"],
+                                      selectbackground=T["accent2"],
+                                      height=4, width=30, relief="flat",
+                                      highlightbackground=T["border"],
+                                      highlightthickness=1)
+        self._mb_listbox.pack(anchor="w", pady=(2, 0))
+
+        # Precargar miembros actuales
+        if data.get("members"):
+            for m in [m.strip() for m in data["members"].split(",") if m.strip()]:
+                self._mb_listbox.insert(tk.END, m)
+
+        def _add_mb():
+            val = self._mb_var.get().strip()
+            if val and val not in self._mb_listbox.get(0, tk.END):
+                self._mb_listbox.insert(tk.END, val)
+                self._mb_var.set("")
+                self._mb_combo['values'] = all_users
+
+        def _del_mb():
+            sel = self._mb_listbox.curselection()
+            if sel:
+                self._mb_listbox.delete(sel[0])
+
+        self._mb_combo.bind("<Return>", lambda e: _add_mb())
+
+        tk.Button(mb_input_row, text="＋ Agregar", font=("Courier New", 8),
+                  bg=T["accent2"], fg="#fff", relief="flat", cursor="hand2",
+                  padx=6, command=_add_mb).pack(side="left", padx=(4, 2))
+        tk.Button(mb_input_row, text="✕ Eliminar", font=("Courier New", 8),
+                  bg=T["button_bg"], fg=T["text2"], relief="flat", cursor="hand2",
+                  padx=6, command=_del_mb).pack(side="left", padx=2)
+        # ── fin miembros ──
 
         self.is_system = tk.BooleanVar(value=False)
         if not self.edit:
@@ -2905,6 +3030,8 @@ class GroupDialog(tk.Toplevel):
         if not d.get("name") and not self.edit:
             messagebox.showerror("Error", "El nombre del grupo es obligatorio.", parent=self)
             return
+        # Leer miembros del listbox
+        d["members"] = ",".join(self._mb_listbox.get(0, tk.END))
         d["system"] = self.is_system.get() if hasattr(self, 'is_system') else False
         self.result = d
         self.destroy()
