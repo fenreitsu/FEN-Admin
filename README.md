@@ -1,4 +1,4 @@
-# ⬡ FENAdmin v1.2
+# ⬡ FENAdmin v1.3
 ### Gestor de Usuarios y Grupos para Linux (GUI LINUX)
 **by [@fenreitsu](https://github.com/fenreitsu)** · *Proyecto en desarrollo*
 
@@ -8,6 +8,7 @@ FENAdmin es una herramienta gráfica para administrar usuarios y grupos en Linux
 
 ## 📌 Índice
 
+- [📝 Changelog](#-changelog)
 - [📋 Requisitos](#-requisitos)
 - [🚀 Instalación y Ejecución](#-instalación-y-ejecución)
 - [🖥️ Interfaz](#️-interfaz)
@@ -18,7 +19,43 @@ FENAdmin es una herramienta gráfica para administrar usuarios y grupos en Linux
 - [⚠️ Seguridad](#️-seguridad)
 - [🛠️ Solución de Problemas](#️-solución-de-problemas)
 - [💡 Recomendaciones](#-recomendaciones)
-- [📝 Changelog](#-changelog)
+
+---
+
+## 📝 Changelog
+
+### v1.3 (Actual 15/04/2026)
+| | Cambio |
+|-|--------|
+| ✅ | **Nueva lógica completa de tipos de cuenta** (`Admin`, `Desktop User`, `Personalizado`) basada en los grupos reales del sistema |
+| ✅ | Detección automática del tipo de cuenta al cargar y editar usuarios |
+| ✅ | Aplicación inteligente de plantillas de grupos según el tipo seleccionado |
+| ✅ | Mejora significativa en la gestión de **permisos especiales** (switches con animación) para usuarios Personalizados |
+| ✅ | Corrección completa de carga y guardado de permisos al editar usuarios |
+| ✅ | Animaciones suaves en los interruptores de permisos |
+| ✅ | Mejoras en el flujo de desbloqueo de usuarios (solicita nueva contraseña automáticamente si es necesario) |
+| ✅ | Optimizaciones en filtros avanzados y rendimiento de las tablas |
+| ✅ | Código más modular y limpio (separación clara de lógica de tipos de cuenta) |
+| ✅ | Mayor estabilidad general y experiencia de usuario mejorada |
+
+
+### v1.2
+- Mejoras en la interfaz y estabilidad general
+- Correcciones menores en la terminal integrada
+- Optimizaciones en el renderizado de tablas y filtros
+
+### v1.1
+- Terminal interactiva integrada con historial y bloqueo de comandos peligrosos
+- Tipos de cuenta con estilo toggle
+- Gestión avanzada de permisos especiales
+- Listas dinámicas de grupos adicionales
+- Correcciones en el layout de configuración de cuenta
+
+### v0.3
+- Introducción de tipos de cuenta básicos
+- Validación y generador de contraseñas
+- Filtros avanzados
+- Configuración de UID, grupos y expiración
 
 ---
 
@@ -44,10 +81,10 @@ Si falta: `sudo apt install python3-tk` (Debian/Ubuntu/Kali) · `sudo pacman -S 
 
 ```bash
 # Acceso completo ✅
-sudo python3 fenadmin.py
+sudo python3 fen-admin.py
 
 # Solo lectura (sin modificaciones)
-python3 fenadmin.py
+python3 fen-admin.py
 ```
 
 <details>
@@ -55,10 +92,10 @@ python3 fenadmin.py
 
 ```bash
 # Dar permisos y ejecutar directamente
-chmod +x fenadmin.py && sudo ./fenadmin.py
+chmod +x fen-admin.py && sudo ./fen-admin.py
 
 # Crear alias permanente en ~/.bashrc o ~/.zshrc
-alias fenadmin='sudo python3 /ruta/completa/fenadmin.py'
+alias fen-admin='sudo python3 /ruta/completa/fen-admin.py'
 source ~/.bashrc
 ```
 </details>
@@ -78,7 +115,7 @@ source ~/.bashrc
 │ ↻ Actualz├──────────────────────────────────────────────────────┤
 │          │  📟 Terminal  $ > _              [▶ Ejecutar] [🗑]   │
 ├──────────┴──────────────────────────────────────────────────────┤
-│  FENAdmin listo.                          2025-01-01  12:00:00  │
+│  FENAdmin listo.                          2026-04-15  12:00:00  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -185,6 +222,7 @@ Se accede desde la pestaña **Configuración de cuenta** al editar un usuario. C
 usermod -aG 'audio' 'usuario'   # Al activar un permiso
 gpasswd -d 'usuario' 'audio'    # Al desactivar un permiso
 ```
+**Novedad v1.3: Los permisos ahora se cargan y guardan correctamente al editar.**
 
 ---
 
@@ -244,36 +282,13 @@ sudo cp /etc/group  /etc/group.bak
 ## 📁 Estructura del proyecto
 
 ```
-fenadmin/
-├── fenadmin.py              ← Script principal
+FEN-Admin/
+├── fen-admin.py              ← Script principal
 ├── README.md                ← Este documento
 └── resources/logo/
     ├── fenreitsu.png        ← Logo modo claro
     └── fenreitsu-white.png  ← Logo modo oscuro
 ```
-
----
-
-## 📝 Changelog
-
-### v1.1 *(actual)*
-| | Cambio |
-|-|--------|
-| ✅ | Terminal interactiva integrada con historial `↑`/`↓` |
-| ✅ | Bloqueo de comandos peligrosos (`nobody`, `nogroup`) en terminal |
-| ✅ | Botones de tipo de cuenta con estilo toggle (azul / gris) |
-| ✅ | Permisos especiales se cargan automáticamente en usuarios Personalizado |
-| ✅ | Aviso visible cuando la cuenta no es Personalizado |
-| ✅ | Grupos como listas dinámicas (agregar/eliminar uno a uno) |
-| ✅ | Layout de Configuración de cuenta corregido |
-| ✅ | Cambios de permisos reflejados en terminal |
-| ✅ | Desbloqueo solicita contraseña si el usuario no tiene una válida |
-
-### v0.3
-Panel de actividad estático (se sustituye por una terminal interactiva en la v1.1)
-· Tipos de cuenta · Validación y generador de contraseñas
-· Filtros avanzados
-· Configuración básica de UID/grupos/expiración
 
 ---
 
@@ -283,4 +298,4 @@ Uso libre para fines educativos y administrativos. Se requiere crédito al autor
 
 ---
 
-*FENAdmin v1.1 — Hecho con ❤️ por [@fenreitsu](https://github.com/fenreitsu) con ayuda de Claude y Deepseek*
+*FENAdmin v1.3 — Hecho con ❤️ por [@fenreitsu](https://github.com/fenreitsu) con ayuda de Claude y Deepseek*
