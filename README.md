@@ -24,7 +24,7 @@ FENAdmin es una herramienta gráfica para administrar usuarios y grupos en Linux
 
 ## 📝 Changelog
 
-### v1.3 (Actual 15/04/2026)
+### v1.3 (Actual Abril 2026)
 | | Cambio |
 |-|--------|
 | ✅ | **Nueva lógica completa de tipos de cuenta** (`Admin`, `Desktop User`, `Personalizado`) basada en los grupos reales del sistema |
